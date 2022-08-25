@@ -70,8 +70,6 @@ for e in range(episode_num):
   obs = env.reset()[0]
   obs = obs[:,:,::-1]
   for t in range(episode_length):
-    cv2.imshow("obs", obs)
-    cv2.waitKey(1)
     action, pick, place = get_user_action(obs)
     nobs, _, done,_ = env.step(action)
     nobs = nobs[0]
@@ -79,4 +77,3 @@ for e in range(episode_num):
     buf.append((obs,(pick, place),nobs))
     obs = nobs
 
-    torch.save(buf, './data/human_dataset.pt')
