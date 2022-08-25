@@ -1393,8 +1393,8 @@ void RenderScene() {
         DrawMesh(g_mesh, g_meshColor);
 
     // printf("pass DrawMesh\n");
-    if (!g_clothOnly)
-        DrawShapes();
+    // if (!g_clothOnly)
+    //     DrawShapes();
     // printf("pass DrawShapes\n");
 
     if (g_drawCloth && g_buffers->triangles.size()) {
@@ -1460,7 +1460,7 @@ void RenderScene() {
                 DrawMesh(g_mesh, g_meshColor);
 
 
-            DrawShapes();
+            // DrawShapes();
 
             if (g_drawCloth && g_buffers->triangles.size())
                 DrawCloth(&g_buffers->positions[0], &g_buffers->normals[0],

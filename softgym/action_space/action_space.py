@@ -4,6 +4,7 @@ from gym.spaces import Box
 from softgym.utils.misc import rotation_2d_around_center, extend_along_center
 import pyflex
 import scipy.spatial
+import cv2
 
 
 class ActionToolBase(metaclass=abc.ABCMeta):
@@ -256,8 +257,8 @@ class PickerQPG(PickerPickPlace):
         self.image_size = image_size
         self.cam_pos = cam_pos
         self.cam_angle = cam_angle
-        self.action_space = Box(np.array([-1., -1, -0.3, 0., -0.3]),
-                                np.array([1., 1., *([0.3] * 3)]), dtype=np.float32)
+        self.action_space = Box(np.array([-1., -1, -1, 0., -1]),
+                                np.array([1., 1., 1., 0.3, 1.]), dtype=np.float32)
         assert self.num_picker == 1
         self.full = full
         self.total_steps = None
@@ -315,22 +316,37 @@ class PickerQPG(PickerPickPlace):
         super().reset(*args, **kwargs)
 
     def step(self, action):
-        """ Action is in 5D: (u,v) the start of the pick in image coordinate; (dx, dy, dz): the relative position of the place w.r.t. the pick"""
+        """ Action is in 4D: pick and place (x,y) normalized 0 - 1
+        """
         u, v = action[:2]
-        u = ((u + 1.) * 0.5) * self.image_size[0]
-        v = ((v + 1.) * 0.5) * self.image_size[1]
+        # u = ((u + 1.) * 0.5) * self.image_size[0]
+        # v = ((v + 1.) * 0.5) * self.image_size[1]
+        u = u * self.image_size[0]
+        v = v * self.image_size[1]
         x, y, z = self._get_world_coor_from_image(u, v)
-        y += 0.01
-        dx, dy, dz = action[2:]
+        y += 0.02
+        #dx, dy, dz = action[2:]
+
+        eu, ev = action[2:]
+        eu = eu * self.image_size[0]
+        ev = ev * self.image_size[1]
+        ex, ey, ez = self._get_world_coor_from_image(eu, ev)
+        # Place Drop height
+        ey = 0.1
 
         st_high = np.array([x, 0.2, z, 0])
         st = np.array([x, y, z, 0])
-        en = st + np.array([dx, dy, dz, 1])
-        # print('st:', st)
+        st_after = np.array([x, ey, z, 1])
+        en = np.array([ex, ey, ez, 1])
+        en_low = np.array([ex, 0.08, ez, 1])
+        final = np.array([ex, 0.2, ez, 0])
         if self.full:
             self.total_steps += super().step(st_high)
             self.total_steps += super().step(st)
+            self.total_steps += super().step(st_after)
             self.total_steps += super().step(en)
+            self.total_steps += super().step(en_low)
+            self.total_steps += super().step(final)
             en[3] = 0  # Drop cloth
             # Unpick all particles
             _, particle_pos = self._get_pos()
@@ -340,32 +356,13 @@ class PickerQPG(PickerPickPlace):
                     new_particle_pos[self.picked_particles[i], 3] = self.particle_inv_mass[self.picked_particles[i]]  # Revert the mass
                     self.picked_particles[i] = None
             pyflex.set_positions(new_particle_pos)
-            for i in range(20):
+            settle_steps = 130
+            for i in range(settle_steps):
                 pyflex.step()
+
                 if self.env is not None and self.env.recording:
                     self.env.video_frames.append(self.env.render(mode='rgb_array'))
-            self.total_steps += 20
+            self.total_steps += settle_steps
         else:
             raise NotImplementedError
         return self.total_steps
-
-    def get_model_action(self, action, curr_pos):
-        u, v = action[:2]
-        u = ((u + 1.) * 0.5) * self.image_size[0]
-        v = ((v + 1.) * 0.5) * self.image_size[1]
-        x, y, z = self._get_world_coor_from_image(u, v)
-        y += 0.01
-        dx, dy, dz = action[2:]
-
-        st_high = np.array([x, 0.2, z, 0])
-        st = np.array([x, y, z, 0])
-        en = st + np.array([dx, dy, dz, 1])
-
-        model_actions = []
-        model_action, curr_pos = super().get_model_action(st_high, curr_pos)
-        model_actions.extend(model_action)
-        model_action, curr_pos = super().get_model_action(st, curr_pos)
-        model_actions.extend(model_action)
-        model_action, curr_pos = super().get_model_action(en, curr_pos)
-        model_actions.extend(model_action)
-        return model_actions, curr_pos

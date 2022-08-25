@@ -28,7 +28,7 @@ class ClothFoldEnv(ClothEnv):
         stable_vel_threshold = 0.2  # Cloth stable when all particles' vel are smaller than this
         generated_configs, generated_states = [], []
         default_config = self.get_default_config()
-        default_config['flip_mesh'] = 1
+        default_config['flip_mesh'] = 0
 
         for i in range(num_variations):
             config = deepcopy(default_config)

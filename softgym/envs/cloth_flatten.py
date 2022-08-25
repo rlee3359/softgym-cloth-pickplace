@@ -14,16 +14,92 @@ class ClothFlattenEnv(ClothEnv):
         :param num_picker: Number of pickers if the aciton_mode is picker
         :param kwargs:
         """
+        self.fold_group_a = self.fold_group_b = None
+        self.init_pos, self.prev_dist = None, None
         super().__init__(**kwargs)
         self.get_cached_configs_and_states(cached_states_path, self.num_variations)
         self.prev_covered_area = None  # Should not be used until initialized
 
-    def generate_env_variation(self, num_variations=1, vary_cloth_size=True):
+    # def generate_env_variation(self, num_variations=1, vary_cloth_size=True):
+    #     """ Generate initial states. Note: This will also change the current states! """
+    #     max_wait_step = 300  # Maximum number of steps waiting for the cloth to stablize
+    #     stable_vel_threshold = 0.01  # Cloth stable when all particles' vel are smaller than this
+    #     generated_configs, generated_states = [], []
+    #     default_config = self.get_default_config()
+    #
+    #     for i in range(num_variations):
+    #         config = deepcopy(default_config)
+    #         self.update_camera(config['camera_name'], config['camera_params'][config['camera_name']])
+    #         if vary_cloth_size:
+    #             cloth_dimx, cloth_dimy = self._sample_cloth_size()
+    #             config['ClothSize'] = [cloth_dimx, cloth_dimy]
+    #         else:
+    #             cloth_dimx, cloth_dimy = config['ClothSize']
+    #         self.set_scene(config)
+    #         self.action_tool.reset([0., -1., 0.])
+    #         pos = pyflex.get_positions().reshape(-1, 4)
+    #         pos[:, :3] -= np.mean(pos, axis=0)[:3]
+    #         if self.action_mode in ['sawyer', 'franka']:  # Take care of the table in robot case
+    #             pos[:, 1] = 0.57
+    #         else:
+    #             pos[:, 1] = 0.005
+    #         pos[:, 3] = 1
+    #         pyflex.set_positions(pos.flatten())
+    #         pyflex.set_velocities(np.zeros_like(pos))
+    #         pyflex.step()
+    #
+    #         num_particle = cloth_dimx * cloth_dimy
+    #         pickpoint = random.randint(0, num_particle - 1)
+    #         curr_pos = pyflex.get_positions()
+    #         original_inv_mass = curr_pos[pickpoint * 4 + 3]
+    #         curr_pos[pickpoint * 4 + 3] = 0  # Set the mass of the pickup point to infinity so that it generates enough force to the rest of the cloth
+    #         pickpoint_pos = curr_pos[pickpoint * 4: pickpoint * 4 + 3].copy()  # Pos of the pickup point is fixed to this point
+    #         pickpoint_pos[1] += np.random.random(1) * 0.5 + 0.5
+    #         pyflex.set_positions(curr_pos)
+    #
+    #         # Pick up the cloth and wait to stablize
+    #         for j in range(0, max_wait_step):
+    #             curr_pos = pyflex.get_positions()
+    #             curr_vel = pyflex.get_velocities()
+    #             curr_pos[pickpoint * 4: pickpoint * 4 + 3] = pickpoint_pos
+    #             curr_vel[pickpoint * 3: pickpoint * 3 + 3] = [0, 0, 0]
+    #             pyflex.set_positions(curr_pos)
+    #             pyflex.set_velocities(curr_vel)
+    #             pyflex.step()
+    #             if np.alltrue(np.abs(curr_vel) < stable_vel_threshold) and j > 5:
+    #                 break
+    #
+    #         # Drop the cloth and wait to stablize
+    #         curr_pos = pyflex.get_positions()
+    #         curr_pos[pickpoint * 4 + 3] = original_inv_mass
+    #         pyflex.set_positions(curr_pos)
+    #         for _ in range(max_wait_step):
+    #             pyflex.step()
+    #             curr_vel = pyflex.get_velocities()
+    #             if np.alltrue(curr_vel < stable_vel_threshold):
+    #                 break
+    #
+    #         center_object()
+    #
+    #         if self.action_mode == 'sphere' or self.action_mode.startswith('picker'):
+    #             curr_pos = pyflex.get_positions()
+    #             self.action_tool.reset(curr_pos[pickpoint * 4:pickpoint * 4 + 3] + [0., 0.2, 0.])
+    #         generated_configs.append(deepcopy(config))
+    #         generated_states.append(deepcopy(self.get_state()))
+    #         self.current_config = config  # Needed in _set_to_flatten function
+    #         generated_configs[-1]['flatten_area'] = self._set_to_flatten()  # Record the maximum flatten area
+    #
+    #         print('config {}: camera params {}, flatten area: {}'.format(i, config['camera_params'], generated_configs[-1]['flatten_area']))
+    #
+    #     return generated_configs, generated_states
+
+    def generate_env_variation(self, num_variations=2, vary_cloth_size=True):
         """ Generate initial states. Note: This will also change the current states! """
-        max_wait_step = 300  # Maximum number of steps waiting for the cloth to stablize
-        stable_vel_threshold = 0.01  # Cloth stable when all particles' vel are smaller than this
+        max_wait_step = 1000  # Maximum number of steps waiting for the cloth to stablize
+        stable_vel_threshold = 0.2  # Cloth stable when all particles' vel are smaller than this
         generated_configs, generated_states = [], []
         default_config = self.get_default_config()
+        default_config['flip_mesh'] = 1
 
         for i in range(num_variations):
             config = deepcopy(default_config)
@@ -33,63 +109,38 @@ class ClothFlattenEnv(ClothEnv):
                 config['ClothSize'] = [cloth_dimx, cloth_dimy]
             else:
                 cloth_dimx, cloth_dimy = config['ClothSize']
+
             self.set_scene(config)
             self.action_tool.reset([0., -1., 0.])
             pos = pyflex.get_positions().reshape(-1, 4)
             pos[:, :3] -= np.mean(pos, axis=0)[:3]
-            if self.action_mode in ['sawyer', 'franka']:  # Take care of the table in robot case
+            if self.action_mode in ['sawyer', 'franka']: # Take care of the table in robot case
                 pos[:, 1] = 0.57
             else:
                 pos[:, 1] = 0.005
             pos[:, 3] = 1
             pyflex.set_positions(pos.flatten())
             pyflex.set_velocities(np.zeros_like(pos))
-            pyflex.step()
-
-            num_particle = cloth_dimx * cloth_dimy
-            pickpoint = random.randint(0, num_particle - 1)
-            curr_pos = pyflex.get_positions()
-            original_inv_mass = curr_pos[pickpoint * 4 + 3]
-            curr_pos[pickpoint * 4 + 3] = 0  # Set the mass of the pickup point to infinity so that it generates enough force to the rest of the cloth
-            pickpoint_pos = curr_pos[pickpoint * 4: pickpoint * 4 + 3].copy()  # Pos of the pickup point is fixed to this point
-            pickpoint_pos[1] += np.random.random(1) * 0.5 + 0.5
-            pyflex.set_positions(curr_pos)
-
-            # Pick up the cloth and wait to stablize
-            for j in range(0, max_wait_step):
-                curr_pos = pyflex.get_positions()
-                curr_vel = pyflex.get_velocities()
-                curr_pos[pickpoint * 4: pickpoint * 4 + 3] = pickpoint_pos
-                curr_vel[pickpoint * 3: pickpoint * 3 + 3] = [0, 0, 0]
-                pyflex.set_positions(curr_pos)
-                pyflex.set_velocities(curr_vel)
+            for _ in range(5):  # In case if the cloth starts in the air
                 pyflex.step()
-                if np.alltrue(np.abs(curr_vel) < stable_vel_threshold) and j > 5:
-                    break
 
-            # Drop the cloth and wait to stablize
-            curr_pos = pyflex.get_positions()
-            curr_pos[pickpoint * 4 + 3] = original_inv_mass
-            pyflex.set_positions(curr_pos)
-            for _ in range(max_wait_step):
+            for wait_i in range(max_wait_step):
                 pyflex.step()
                 curr_vel = pyflex.get_velocities()
-                if np.alltrue(curr_vel < stable_vel_threshold):
+                if np.alltrue(np.abs(curr_vel) < stable_vel_threshold):
                     break
 
             center_object()
+            angle = (np.random.random() - 0.5) * np.pi / 2
+            # self.rotate_particles(angle)
 
-            if self.action_mode == 'sphere' or self.action_mode.startswith('picker'):
-                curr_pos = pyflex.get_positions()
-                self.action_tool.reset(curr_pos[pickpoint * 4:pickpoint * 4 + 3] + [0., 0.2, 0.])
             generated_configs.append(deepcopy(config))
+            print('config {}: {}'.format(i, config['camera_params']))
             generated_states.append(deepcopy(self.get_state()))
-            self.current_config = config  # Needed in _set_to_flatten function
-            generated_configs[-1]['flatten_area'] = self._set_to_flatten()  # Record the maximum flatten area
-
-            print('config {}: camera params {}, flatten area: {}'.format(i, config['camera_params'], generated_configs[-1]['flatten_area']))
 
         return generated_configs, generated_states
+
+
 
     def _set_to_flatten(self):
         # self._get_current_covered_area(pyflex.get_positions().reshape(-))
@@ -108,17 +159,60 @@ class ClothFlattenEnv(ClothEnv):
         return self._get_current_covered_area(new_pos)
 
     def _reset(self):
-        """ Right now only use one initial state"""
-        self.prev_covered_area = self._get_current_covered_area(pyflex.get_positions())
+        """ Right now only use one initial state. Need to make sure _reset always give the same result. Otherwise CEM will fail."""
         if hasattr(self, 'action_tool'):
-            curr_pos = pyflex.get_positions()
-            cx, cy = self._get_center_point(curr_pos)
-            self.action_tool.reset([cx, 0.2, cy])
+            particle_pos = pyflex.get_positions().reshape(-1, 4)
+            p1, p2, p3, p4 = self._get_key_point_idx()
+            key_point_pos = particle_pos[(p1, p2), :3] # Was changed from from p1, p4.
+            middle_point = np.mean(key_point_pos, axis=0)
+            self.action_tool.reset([middle_point[0], 0.1, middle_point[2]])
+
+            # picker_low = self.action_tool.picker_low
+            # picker_high = self.action_tool.picker_high
+            # offset_x = self.action_tool._get_pos()[0][0][0] - picker_low[0] - 0.3
+            # picker_low[0] += offset_x
+            # picker_high[0] += offset_x
+            # picker_high[0] += 1.0
+            # self.action_tool.update_picker_boundary(picker_low, picker_high)
+
+        config = self.get_current_config()
+        num_particles = np.prod(config['ClothSize'], dtype=int)
+        particle_grid_idx = np.array(list(range(num_particles))).reshape(config['ClothSize'][1], config['ClothSize'][0])  # Reversed index here
+
+        cloth_dimx = config['ClothSize'][0]
+        x_split = cloth_dimx // 2
+        self.fold_group_a = particle_grid_idx[:, :x_split].flatten()
+        self.fold_group_b = np.flip(particle_grid_idx, axis=1)[:, :x_split].flatten()
+
+        colors = np.zeros(num_particles)
+        colors[self.fold_group_a] = 1
+        # self.set_colors(colors) # TODO the phase actually changes the cloth dynamics so we do not change them for now. Maybe delete this later.
+
         pyflex.step()
-        self.init_covered_area = None
+        self.init_pos = pyflex.get_positions().reshape((-1, 4))[:, :3]
+        pos_a = self.init_pos[self.fold_group_a, :]
+        pos_b = self.init_pos[self.fold_group_b, :]
+        self.prev_dist = np.mean(np.linalg.norm(pos_a - pos_b, axis=1))
+
+        self.performance_init = None
         info = self._get_info()
-        self.init_covered_area = info['performance']
+        self.performance_init = info['performance']
         return self._get_obs()
+
+
+
+    # def _reset(self):
+    #     """ Right now only use one initial state"""
+    #     self.prev_covered_area = self._get_current_covered_area(pyflex.get_positions())
+    #     if hasattr(self, 'action_tool'):
+    #         curr_pos = pyflex.get_positions()
+    #         cx, cy = self._get_center_point(curr_pos)
+    #         self.action_tool.reset([cx, 0.2, cy])
+    #     pyflex.step()
+    #     self.init_covered_area = None
+    #     info = self._get_info()
+    #     self.init_covered_area = info['performance']
+    #     return self._get_obs()
 
     def _step(self, action):
         self.action_tool.step(action)
@@ -187,20 +281,43 @@ class ClothFlattenEnv(ClothEnv):
     #     max_p = max_area
     #     return min_p, max_p
 
+
     def _get_info(self):
         # Duplicate of the compute reward function!
-        particle_pos = pyflex.get_positions()
-        curr_covered_area = self._get_current_covered_area(particle_pos)
-        init_covered_area = curr_covered_area if self.init_covered_area is None else self.init_covered_area
-        max_covered_area = self.get_current_config()['flatten_area']
+        pos = pyflex.get_positions()
+        pos = pos.reshape((-1, 4))[:, :3]
+        pos_group_a = pos[self.fold_group_a]
+        pos_group_b = pos[self.fold_group_b]
+        pos_group_b_init = self.init_pos[self.fold_group_b]
+        group_dist = np.mean(np.linalg.norm(pos_group_a - pos_group_b, axis=1))
+        fixation_dist = np.mean(np.linalg.norm(pos_group_b - pos_group_b_init, axis=1))
+        performance = -group_dist - 1.2 * fixation_dist
+        performance_init = performance if self.performance_init is None else self.performance_init  # Use the original performance
         info = {
-            'performance': curr_covered_area,
-            'normalized_performance': (curr_covered_area - init_covered_area) / (max_covered_area - init_covered_area),
+            'performance': performance,
+            'normalized_performance': (performance - performance_init) / (0. - performance_init),
+            'neg_group_dist': -group_dist,
+            'neg_fixation_dist': -fixation_dist
         }
         if 'qpg' in self.action_mode:
             info['total_steps'] = self.action_tool.total_steps
         return info
 
+
+    # def _get_info(self):
+    #     # Duplicate of the compute reward function!
+    #     particle_pos = pyflex.get_positions()
+    #     curr_covered_area = self._get_current_covered_area(particle_pos)
+    #     init_covered_area = curr_covered_area if self.init_covered_area is None else self.init_covered_area
+    #     max_covered_area = self.get_current_config()['flatten_area']
+    #     info = {
+    #         'performance': curr_covered_area,
+    #         'normalized_performance': (curr_covered_area - init_covered_area) / (max_covered_area - init_covered_area),
+    #     }
+    #     if 'qpg' in self.action_mode:
+    #         info['total_steps'] = self.action_tool.total_steps
+    #     return info
+    #
     def get_picked_particle(self):
         pps = np.ones(shape=self.action_tool.num_picker)  * -1 # -1 means no particles picked
         for i, pp in enumerate(self.action_tool.picked_particles):
