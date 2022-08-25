@@ -1,5 +1,5 @@
 # SoftGym Cloth PickPlace
-This is a fork of <a href="https://sites.google.com/view/softgym/home">SoftGym</a>, reduced and modified specifically for table top pick place of cloth, with a visual actionspace.
+This is a fork of <a href="https://sites.google.com/view/softgym/home">SoftGym</a>, reduced and modified specifically for table top pick place of cloth, with a visual actionspace normalized 0-1. Specifically, the environment was modified to remove the white/gray background rendering, remove rendering of gripper spehres, and improved the pick-place actionspace for top down fold actions. The path the gripper takes between the pick and place points is modified for improved folds.
 
 ## Using Docker
 If you are using Ubuntu 16.04 LTS and CUDA 9.2, you can follow the steps in the next section on this page for compilation. For other versions of Ubuntu or CUDA, we provide the pre-built Docker image and Dockerfile for running SoftGym. Please refer to our [Docker](docker/docker.md) page.
