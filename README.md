@@ -21,7 +21,9 @@ sudo apt-get install build-essential libgl1-mesa-dev freeglut3-dev libglfw3 libg
 This fork only contains a single cloth environment for pick and place folding from an above view camera.
 Actions are normalized to 0-1.
 
-|![Gif](./examples/ClothFold.gif)|[FoldCloth](softgym/envs/cloth_fold.py) | Fold a piece of flattened cloth in half|
+![0a](https://user-images.githubusercontent.com/15622840/186578438-e59002b0-6909-4819-a6a8-f04a43a47f6f.png)
+![0n](https://user-images.githubusercontent.com/15622840/186578441-e0cf7f56-93b6-42bb-be79-dc5f5c6e52e6.png)
+
 
 ## Cite
 If you find this codebase useful in your research, please consider citing:
