@@ -24,6 +24,13 @@ Actions are normalized to 0-1.
 ![0a](https://user-images.githubusercontent.com/15622840/186578438-e59002b0-6909-4819-a6a8-f04a43a47f6f.png)
 ![0n](https://user-images.githubusercontent.com/15622840/186578441-e0cf7f56-93b6-42bb-be79-dc5f5c6e52e6.png)
 
+## Example
+The script "human_demo_example.py" provides a simple example of usage and a user interface for click-drag pick and place action demonstration.
+
+```
+python human_demo_example.py
+```
+
 
 ## Cite
 If you find this codebase useful in your research, please consider citing:
